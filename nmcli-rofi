@@ -3,20 +3,28 @@ DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 # default config
 FIELDS=SSID,SECURITY,BARS
-POSITION=0; XOFF=0; YOFF=0
+POSITION=0; XOFF=0; YOFF=0;
 FONT="DejaVu Sans Mono Bold 14"
 
 KNOWNCON=$(nmcli connection show)
 CURRUUID=$(nmcli -f UUID,TYPE con show --active | grep wifi | awk '{print $1}')
 
 function wifistate () {
-    WIFISTATE=$(nmcli -fields WIFI g)
-    [[ "$WIFISTATE" =~ 'enabled' ]] && rt=$1 || rt=$2
+  echo "$(nmcli -fields WIFI g)"
+}
+
+function wifiactive () {
+  echo "$(nmcli con show --active | grep wifi)"
+}
+
+function if_wifistate () {
+    [[ "$(wifistate)" =~ 'enabled' ]] && rt=$1 || rt=$2
     echo $rt
 }
 
+
 function toggle_wifi () {
-    toggle=$(wifistate "Disable Network" "Enable Network")
+    toggle=$(if_wifistate "Disable Network" "Enable Network")
     echo $toggle
 }
 
@@ -30,83 +38,122 @@ function nmcli_list () {
     echo "$(nmcli --fields IN-USE,"$FIELDS" device wifi list | sed '/*/d' | sed '/IN-USE/d')"
 }
 
-function rwidth () {
-    rwidth=$(wifistate "$(($(echo "$1" | head -n 1 | awk '{print length($0); }')+2))" \
-        "$(($(echo "$2" | awk '{print length($0); }')+2))" )
-    echo $rwidth
+function count_lines () {
+  echo "$1" | wc -l
 }
 
 function linenum () {
-    lines=$(wifistate "$(($(echo "$1" | awk 'END {print NR}')+4))" 2)
-    echo $lines
+  wa=$(wifiactive)
+  list_lines_num=$(count_lines "$1")
+  [[ "$wa" != '' ]] && ops=4 || ops=3
+
+  lines=$(if_wifistate "$(($list_lines_num+$ops))" 1)
+  echo $lines
+}
+
+function rwidth () {
+    list=$(nmcli --fields "$FIELDS" device wifi list | sed '/*/d' | sed '/IN-USE/d')
+
+    rwidth=$(if_wifistate "$(echo "$list" | head -n 1 | awk '{print length($0); }')" \
+      "$(echo "$1" | awk '{print length($0); }')" )
+    echo $rwidth
+}
+
+function menu () {
+  wa=$(wifiactive); ws=$(wifistate);
+
+  if [[ "$ws" =~ 'enabled' ]]; then
+    if [[ "$wa" != '' ]]; then
+        echo "$1\n\n$2\n$3\nManual Connection"
+    else
+        echo "$1\n\n$3\nManual Connection"
+    fi
+  else
+    echo "$3"
+  fi
+}
+
+function rofi_cmd () {
+  echo -e "$1" | uniq -u | rofi -dmenu -p "Wi-Fi SSID" -lines "$LINENUM" \
+    -location "$POSITION" -yoffset "$YOFF" -xoffset "$XOFF" -font "$FONT" -width "$RWIDTH"
 }
 
 function rofi_menu () {
-
     TOGGLE=$(toggle_wifi)
     CURRCONNECT=$(current_connection)
     [[ "$TOGGLE" =~ 'Enable' ]] && LIST="" || LIST=$(nmcli_list)
 
-    LINENUM=$(linenum "$LIST")
-    RWIDTH=$(rwidth "$LIST" "$TOGGLE")
+    MENU=$(menu "$LIST" "$CURRCONNECT" "$TOGGLE")
 
-    echo -e "$LIST\n\n$CURRCONNECT\n$TOGGLE\nManual" \
-        | uniq -u | rofi -dmenu -p "Wi-Fi SSID" -lines "$LINENUM" -location "$POSITION" \
-        -yoffset "$YOFF" -xoffset "$XOFF" -font "$FONT" -width "$RWIDTH"
+    LINENUM=$(linenum "$LIST")
+    RWIDTH=$(rwidth "$TOGGLE")
+
+    rofi_cmd "$MENU"
 }
 
 function get_ssid () {
     # get fields in order
-    eval FIELDSARR=( $(cat ./config | awk 'BEGIN { FS=","; OFS="\n" } /^FIELDS/ { $1 = substr($1, 8); print $0; }') )
+    eval FIELDSARR=( $(cat ./config | awk 'BEGIN { FS=","; OFS="\n" } /^FIELDS/ \
+      { $1 = substr($1, 8); print $0; }') )
 
     # get position of SSID field
     for i in "${!FIELDSARR[@]}"; do
-        if [[ "${FIELDSARR[$i]}" = "SSID" ]]; then
-            SSID_POS="${i}";
-        fi
+      if [[ "${FIELDSARR[$i]}" = "SSID" ]]; then
+          SSID_POS="${i}";
+      fi
     done
 
     # let for arithmetical vars
     let AWKSSIDPOS=$SSID_POS+1
 
+    # get SSID from AWKSSIDPOS
     CHSSID=$(echo "$1" | awk -v"AWKSSIDPOS=$AWKSSIDPOS" '{print $AWKSSIDPOS;}')
     echo "$CHSSID"
+}
+
+function cleanup_networks () {
+  nmcli --fields UUID,TIMESTAMP-REAL,DEVICE con show | grep -e '--' |  awk '{print $1}' \
+    | while read line; do nmcli con delete uuid $line; done
 }
 
 function main () {
 
     if [ -r "$DIR/config" ]; then
-        source ./config
+      source ./config
     elif [ -r "$HOME/.config/rofi/wifi" ]; then
-        source "$HOME/.config/rofi/wifi"
+      source "$HOME/.config/rofi/wifi"
     else
-        echo "WARNING: config file not found! Using default values."
+      echo "WARNING: config file not found! Using default values."
     fi
 
     OPS=$(rofi_menu)
     CHSSID=$(get_ssid "$OPS")
 
     if [[ "$OPS" =~ 'Disable' ]]; then
-        nmcli radio wifi off
+      nmcli radio wifi off
     elif [[ "$OPS" =~ 'Enable' ]]; then
-        nmcli radio wifi on
+      nmcli radio wifi on
     elif [[ "$OPS" =~ 'Disconnect' ]]; then
-        nmcli con down uuid $CURRUUID
+      nmcli con down uuid $CURRUUID
+      cleanup_networks
     else
-        # If the connection is already in use, then this will still be able to get the SSID
-        if [ "$CHSSID" = "*" ]; then
-            CHSSID=$(echo "$OPS" | sed  's/\s\{2,\}/\|/g' | awk -F "|" '{print $3}')
-	fi
+      # If the connection is already in use, then this will still be able to get the SSID
+      if [ "$CHSSID" = "*" ]; then
+        CHSSID=$(echo "$OPS" | sed  's/\s\{2,\}/\|/g' | awk -F "|" '{print $3}')
+      fi
 
-        if [[ $(echo "$KNOWNCON" | grep "$CHSSID") = "$CHSSID" ]]; then
-            nmcli con up "$CHSSID"
-	else
-            if [[ "$OPS" =~ "WPA2" ]] || [[ "$OPS" =~ "WEP" ]]; then
-                WIFIPASS=$(echo "if connection is stored, hit enter" | rofi -dmenu -p "Password" -lines 1 -font "$FONT" )
-            fi
-            nmcli dev wifi con "$CHSSID" password "$WIFIPASS"
-	fi
+      if [[ $(echo "$KNOWNCON" | grep "$CHSSID") = "$CHSSID" ]]; then
+        nmcli con up "$CHSSID"
+      else
+        if [[ "$OPS" =~ "WPA2" ]] || [[ "$OPS" =~ "WEP" ]]; then
+          WIFIPASS=$(echo "if connection is stored, hit enter" | rofi -dmenu -p "Password" -lines 1 -font "$FONT" )
+        fi
+        nmcli dev wifi con "$CHSSID" password "$WIFIPASS"
+      fi
     fi
 }
+
+# clean up obsoleted connections
+# nmcli --fields UUID,TIMESTAMP-REAL,DEVICE con show | grep never |  awk '{print $1}' | while read line; do nmcli con delete uuid $line; done
 
 main
