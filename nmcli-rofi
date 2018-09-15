@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+
+# default config
+FIELDS=SSID,SECURITY,BARS
+POSITION=0; XOFF=0; YOFF=0
+FONT="DejaVu Sans Mono Bold 14"
+
+KNOWNCON=$(nmcli connection show)
+CURRUUID=$(nmcli -f UUID,TYPE con show --active | grep wifi | awk '{print $1}')
+
+function wifistate () {
+    WIFISTATE=$(nmcli -fields WIFI g)
+    [[ "$WIFISTATE" =~ 'enabled' ]] && rt=$1 || rt=$2
+    echo $rt
+}
+
+function toggle_wifi () {
+    toggle=$(wifistate "Disable Network" "Enable Network")
+    echo $toggle
+}
+
+function current_connection () {
+    currssid=$(iwgetid -r)
+    [[ "$currssid" != '' ]] && currcon="Disconnect from $currssid" || currcon=""
+    echo $currcon
+}
+
+function nmcli_list () {
+    echo "$(nmcli --fields IN-USE,"$FIELDS" device wifi list | sed '/*/d' | sed '/IN-USE/d')"
+}
+
+function rwidth () {
+    rwidth=$(wifistate "$(($(echo "$1" | head -n 1 | awk '{print length($0); }')+2))" \
+        "$(($(echo "$2" | awk '{print length($0); }')+2))" )
+    echo $rwidth
+}
+
+function linenum () {
+    lines=$(wifistate "$(($(echo "$1" | awk 'END {print NR}')+4))" 2)
+    echo $lines
+}
+
+function rofi_menu () {
+
+    TOGGLE=$(toggle_wifi)
+    CURRCONNECT=$(current_connection)
+    [[ "$TOGGLE" =~ 'Enable' ]] && LIST="" || LIST=$(nmcli_list)
+
+    LINENUM=$(linenum "$LIST")
+    RWIDTH=$(rwidth "$LIST" "$TOGGLE")
+
+    echo -e "$LIST\n\n$CURRCONNECT\n$TOGGLE\nManual" \
+        | uniq -u | rofi -dmenu -p "Wi-Fi SSID" -lines "$LINENUM" -location "$POSITION" \
+        -yoffset "$YOFF" -xoffset "$XOFF" -font "$FONT" -width "$RWIDTH"
+}
+
+function get_ssid () {
+    # get fields in order
+    eval FIELDSARR=( $(cat ./config | awk 'BEGIN { FS=","; OFS="\n" } /^FIELDS/ { $1 = substr($1, 8); print $0; }') )
+
+    # get position of SSID field
+    for i in "${!FIELDSARR[@]}"; do
+        if [[ "${FIELDSARR[$i]}" = "SSID" ]]; then
+            SSID_POS="${i}";
+        fi
+    done
+
+    # let for arithmetical vars
+    let AWKSSIDPOS=$SSID_POS+1
+
+    CHSSID=$(echo "$1" | awk -v"AWKSSIDPOS=$AWKSSIDPOS" '{print $AWKSSIDPOS;}')
+    echo "$CHSSID"
+}
+
+function main () {
+
+    if [ -r "$DIR/config" ]; then
+        source ./config
+    elif [ -r "$HOME/.config/rofi/wifi" ]; then
+        source "$HOME/.config/rofi/wifi"
+    else
+        echo "WARNING: config file not found! Using default values."
+    fi
+
+    OPS=$(rofi_menu)
+    CHSSID=$(get_ssid "$OPS")
+
+    if [[ "$OPS" =~ 'Disable' ]]; then
+        nmcli radio wifi off
+    elif [[ "$OPS" =~ 'Enable' ]]; then
+        nmcli radio wifi on
+    elif [[ "$OPS" =~ 'Disconnect' ]]; then
+        nmcli con down uuid $CURRUUID
+    else
+        # If the connection is already in use, then this will still be able to get the SSID
+        if [ "$CHSSID" = "*" ]; then
+            CHSSID=$(echo "$OPS" | sed  's/\s\{2,\}/\|/g' | awk -F "|" '{print $3}')
+	fi
+
+        if [[ $(echo "$KNOWNCON" | grep "$CHSSID") = "$CHSSID" ]]; then
+            nmcli con up "$CHSSID"
+	else
+            if [[ "$OPS" =~ "WPA2" ]] || [[ "$OPS" =~ "WEP" ]]; then
+                WIFIPASS=$(echo "if connection is stored, hit enter" | rofi -dmenu -p "Password" -lines 1 -font "$FONT" )
+            fi
+            nmcli dev wifi con "$CHSSID" password "$WIFIPASS"
+	fi
+    fi
+}
+
+main
