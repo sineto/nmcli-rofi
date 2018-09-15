@@ -6,7 +6,7 @@ FIELDS=SSID,SECURITY,BARS
 POSITION=0; XOFF=0; YOFF=0;
 FONT="DejaVu Sans Mono Bold 14"
 
-KNOWNCON=$(nmcli connection show)
+# KNOWNCON=$(nmcli connection show)
 CURRUUID=$(nmcli -f UUID,TYPE con show --active | grep wifi | awk '{print $1}')
 
 function wifistate () {
@@ -52,10 +52,10 @@ function linenum () {
 }
 
 function rwidth () {
-    list=$(nmcli --fields "$FIELDS" device wifi list | sed '/*/d' | sed '/IN-USE/d')
+    # list=$(nmcli --fields "$FIELDS" device wifi list | sed '/*/d' | sed '/IN-USE/d')
 
-    rwidth=$(if_wifistate "$(echo "$list" | head -n 1 | awk '{print length($0); }')" \
-      "$(echo "$1" | awk '{print length($0); }')" )
+    rwidth=$(if_wifistate "$(echo "$1" | head -n 1 | awk '{print length($0); }')" \
+      "$(echo "$2" | awk '{print length($0); }')" )
     echo $rwidth
 }
 
@@ -74,8 +74,11 @@ function menu () {
 }
 
 function rofi_cmd () {
-  echo -e "$1" | uniq -u | rofi -dmenu -p "Wi-Fi SSID" -lines "$LINENUM" \
+  # OPTIONS = ['msg','-lines']
+  # don't repeat lines with uniq -u
+  echo -e "$1" | uniq -u | rofi -dmenu -p "$2" -lines "$LINENUM" \
     -location "$POSITION" -yoffset "$YOFF" -xoffset "$XOFF" -font "$FONT" -width "$RWIDTH"
+  # echo -e "$1" | rofi -dmenu -p "$2" "$3"
 }
 
 function rofi_menu () {
@@ -86,9 +89,10 @@ function rofi_menu () {
     MENU=$(menu "$LIST" "$CURRCONNECT" "$TOGGLE")
 
     LINENUM=$(linenum "$LIST")
-    RWIDTH=$(rwidth "$TOGGLE")
+    RWIDTH=$(rwidth "$LIST" "$TOGGLE")
 
-    rofi_cmd "$MENU"
+    rofi_cmd "$MENU" "Wi-Fi SSID"
+    # rofi_cmd "$MENU"
 }
 
 function get_ssid () {
@@ -131,25 +135,41 @@ function main () {
 
     if [[ "$OPS" =~ 'Disable' ]]; then
       nmcli radio wifi off
+
     elif [[ "$OPS" =~ 'Enable' ]]; then
       nmcli radio wifi on
+
     elif [[ "$OPS" =~ 'Disconnect' ]]; then
       nmcli con down uuid $CURRUUID
       cleanup_networks
+
+    elif [[ "$OPS" =~ 'Manual' ]]; then
+      # Manual entry of the SSID and password (if appplicable)
+      MSSID=$(echo "enter the SSID of the network" | rofi -dmenu -p "SSID" -font "$FONT" -lines 1)
+      MPASS=$(echo "enter the PASSWORD of the network" | rofi -dmenu -p "PASSWORD" -font "$FONT" -lines 1)
+
+      If the user entered a manual password, then use the password nmcli command
+      if [ "$MPASS" = "" ]; then
+        nmcli dev wifi con "$MSSID"
+      else
+        nmcli dev wifi con "$MSSID" password "$MPASS"
+      fi
+
     else
       # If the connection is already in use, then this will still be able to get the SSID
       if [ "$CHSSID" = "*" ]; then
         CHSSID=$(echo "$OPS" | sed  's/\s\{2,\}/\|/g' | awk -F "|" '{print $3}')
       fi
 
-      if [[ $(echo "$KNOWNCON" | grep "$CHSSID") = "$CHSSID" ]]; then
-        nmcli con up "$CHSSID"
-      else
+      # if [[ $(echo "$KNOWNCON" | grep "$CHSSID") = "$CHSSID" ]]; then
+      #   nmcli con up "$CHSSID"
+      # else
         if [[ "$OPS" =~ "WPA2" ]] || [[ "$OPS" =~ "WEP" ]]; then
-          WIFIPASS=$(echo "if connection is stored, hit enter" | rofi -dmenu -p "Password" -lines 1 -font "$FONT" )
+          WIFIPASS=$(echo "if connection is stored, hit enter" | rofi -dmenu -p "PASSWORD" -lines 1 -font "$FONT" )
         fi
         nmcli dev wifi con "$CHSSID" password "$WIFIPASS"
-      fi
+      # fi
+
     fi
 }
 
