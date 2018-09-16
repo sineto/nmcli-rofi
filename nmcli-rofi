@@ -140,10 +140,10 @@ function main () {
 
     elif [[ "$OPS" =~ 'Manual' ]]; then
       # Manual entry of the SSID and password (if appplicable)
-      MSSID=$(rofi -dmenu -p "SSID" -mesg "Enter the SSID of the network" \
+      MSSID=$(echo -en "" | rofi -dmenu -p "SSID" -mesg "Enter the SSID of the network" \
         -lines 0 -font "$FONT")
 
-      MPASS=$(rofi -dmenu -password -p "PASSWORD" -mesg \
+      MPASS=$(echo -en "" | rofi -dmenu -password -p "PASSWORD" -mesg \
         "Enter the PASSWORD of the network" -lines 0 -font "$FONT")
 
       #If the user entered a manual password, then use the password nmcli command
@@ -155,8 +155,8 @@ function main () {
 
     else
         if [[ "$OPS" =~ "WPA2" ]] || [[ "$OPS" =~ "WEP" ]]; then
-          WIFIPASS=$(rofi -dmenu -password -p "PASSWORD" -mesg \
-            "Enter the PASSWORD of the network" -lines 0 -font "$FONT" )
+          WIFIPASS=$(echo -en "" | rofi -dmenu -password -p "PASSWORD" \
+            -mesg "Enter the PASSWORD of the network" -lines 0 -font "$FONT")
         fi
 
         if [[ "$CHSSID" != '' ]] && [[ "$WIFIPASS" != '' ]]; then
