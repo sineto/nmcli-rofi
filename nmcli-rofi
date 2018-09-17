@@ -6,35 +6,40 @@ FIELDS=SSID,SECURITY,BARS
 POSITION=0; XOFF=0; YOFF=0;
 FONT="DejaVu Sans Mono Bold 14"
 
+# get current uuid
 CURRUUID=$(nmcli -f UUID,TYPE con show --active | grep wifi | awk '{print $1}')
 
+# get wifi state
 function wifistate () {
   echo "$(nmcli -fields WIFI g)"
 }
 
+# get active wifi connections
 function wifiactive () {
   echo "$(nmcli con show --active | grep wifi)"
 }
 
 function if_wifistate () {
-    [[ "$(wifistate)" =~ 'enabled' ]] && rt=$1 || rt=$2
-    echo $rt
+  # return a expression based on wifi state
+  [[ "$(wifistate)" =~ 'enabled' ]] && rt=$1 || rt=$2
+  echo $rt
 }
 
 
 function toggle_wifi () {
-    toggle=$(if_wifistate "Disable Network" "Enable Network")
-    echo $toggle
+  toggle=$(if_wifistate "Disable Network" "Enable Network")
+  echo $toggle
 }
 
 function current_connection () {
-    currssid=$(iwgetid -r)
-    [[ "$currssid" != '' ]] && currcon="Disconnect from $currssid" || currcon=""
-    echo $currcon
+  currssid=$(iwgetid -r)
+  [[ "$currssid" != '' ]] && currcon="Disconnect from $currssid" || currcon=""
+  echo $currcon
 }
 
 function nmcli_list () {
-    echo "$(nmcli --fields IN-USE,"$FIELDS" device wifi list | sed '/*/d' | sed '/IN-USE/d')"
+  # get list of available connections without the active connection (if it's connected)
+  echo "$(nmcli --fields IN-USE,"$FIELDS" device wifi list | sed '/*/d' | sed '/IN-USE/d')"
 }
 
 function count_lines () {
@@ -139,14 +144,15 @@ function main () {
       cleanup_networks
 
     elif [[ "$OPS" =~ 'Manual' ]]; then
-      # Manual entry of the SSID and password (if appplicable)
+      # Manual entry of the SSID
       MSSID=$(echo -en "" | rofi -dmenu -p "SSID" -mesg "Enter the SSID of the network" \
         -lines 0 -font "$FONT")
 
+      # manual entry of the PASSWORD
       MPASS=$(echo -en "" | rofi -dmenu -password -p "PASSWORD" -mesg \
         "Enter the PASSWORD of the network" -lines 0 -font "$FONT")
 
-      #If the user entered a manual password, then use the password nmcli command
+      # If the user entered a manual password, then use the password nmcli command
       if [ "$MPASS" = "" ]; then
         nmcli dev wifi con "$MSSID"
       elif [ "$MSSID" != '' ] && [ "$MPASS" != '' ]; then
