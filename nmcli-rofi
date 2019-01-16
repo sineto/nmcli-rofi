@@ -1,17 +1,26 @@
 #!/usr/bin/env bash
-DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 # default config
 FIELDS=SSID,SECURITY,BARS
-POSITION=0; XOFF=0; YOFF=0;
+POSITION=0; XOFF=0; YOFF=0
+MAGIC=-4
 FONT="DejaVu Sans Mono Bold 14"
+
+# supported locales (en, ru, de, fr, hi, ja)
+declare -A LOC_ENABLE=(["en"]="enabled" ["ru"]="включен" ["de"]="aktiviert" ["fr"]="activé" ["hi"]="सक्षम" ["ja"]="有効")
+
+# get current locale
+CURRLOCALE=$(locale | grep 'LANG=[a-z]*' -o | sed 's/^LANG=//g')
+# 'enabled' in currnet locale
+ENABLED="${LOC_ENABLE["$CURRLOCALE"]}"
 
 # get current uuid
 CURRUUID=$(nmcli -f UUID,TYPE con show --active | grep wifi | awk '{print $1}')
 
 # get wifi state
 function wifistate () {
-  echo "$(nmcli -fields WIFI g)"
+  echo "$(nmcli -fields WIFI g | sed -n 2p)"
 }
 
 # get active wifi connections
@@ -21,10 +30,9 @@ function wifiactive () {
 
 function if_wifistate () {
   # return a expression based on wifi state
-  [[ "$(wifistate)" =~ 'enabled' ]] && rt=$1 || rt=$2
+  [[ "$(wifistate)" =~ $ENABLED ]] && rt=$1 || rt=$2
   echo $rt
 }
-
 
 function toggle_wifi () {
   toggle=$(if_wifistate "Disable Network" "Enable Network")
@@ -39,7 +47,7 @@ function current_connection () {
 
 function nmcli_list () {
   # get list of available connections without the active connection (if it's connected)
-  echo "$(nmcli --fields IN-USE,"$FIELDS" device wifi list | sed '/*/d' | sed '/IN-USE/d')"
+  echo "$(nmcli --fields IN-USE,"$FIELDS" device wifi list | sed "s/^IN-USE\s//g" | sed '/*/d' | sed 's/^ *//')"
 }
 
 function count_lines () {
@@ -56,16 +64,16 @@ function linenum () {
 }
 
 function rwidth () {
-    minus=$(echo -n "IN-USE  " | wc -m)
-    rwidth=$(if_wifistate "$(($(echo "$1" | head -n 1 | awk '{print length($0); }')-$minus))" \
-      "$(echo "$2" | awk '{print length($0); }')" )
+    rwidth=$(echo "$1" | head -n 1 | awk '{print length($0); }')
+    [[ $rwidth -lt ${#2} ]] && rwidth=${#2}
+    [[ $rwidth -lt ${#3} ]] && rwidth=${#3}
+    let rwidth=$rwidth+$MAGIC
     echo $rwidth
 }
 
 function menu () {
   wa=$(wifiactive); ws=$(wifistate);
-
-  if [[ "$ws" =~ 'enabled' ]]; then
+  if [[ $ws =~ $ENABLED ]]; then
     if [[ "$wa" != '' ]]; then
         echo "$1\n\n$2\n$3\nManual Connection"
     else
@@ -90,7 +98,7 @@ function rofi_menu () {
     MENU=$(menu "$LIST" "$CURRCONNECT" "$TOGGLE")
 
     LINENUM=$(linenum "$LIST")
-    RWIDTH=$(rwidth "$LIST" "$TOGGLE")
+    RWIDTH=$(rwidth "$LIST" "$TOGGLE" "$CURRCONNECT")
 
     rofi_cmd "$MENU"
 }
@@ -121,9 +129,8 @@ function cleanup_networks () {
 }
 
 function main () {
-
     if [ -r "$DIR/config" ]; then
-      source ./config
+      source $DIR/config
     elif [ -r "$HOME/.config/rofi/wifi" ]; then
       source "$HOME/.config/rofi/wifi"
     else
