@@ -52,7 +52,7 @@ function linenum () {
   [[ "$wa" != '' ]] && ops=4 || ops=3
 
   lines=$(if_wifistate "$(($list_lines_num+$ops))" 1)
-  [[ $lines -ge $MAXLINES ]] && lines=$MAXLINES
+  [[ $MAXLINES -gt 0 ]] && [[ $lines -ge $MAXLINES ]] && lines=$MAXLINES
   echo $lines
 }
 
