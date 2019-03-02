@@ -3,7 +3,7 @@ DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 # default config
 FIELDS=SSID,SECURITY,BARS
-POSITION=0; XOFF=0; YOFF=0;
+POSITION=0; XOFF=0; YOFF=0; MAXLINES=0;
 FONT="DejaVu Sans Mono Bold 14"
 
 # get current uuid
@@ -52,6 +52,7 @@ function linenum () {
   [[ "$wa" != '' ]] && ops=4 || ops=3
 
   lines=$(if_wifistate "$(($list_lines_num+$ops))" 1)
+  [[ $lines -ge $MAXLINES ]] && lines=$MAXLINES
   echo $lines
 }
 
