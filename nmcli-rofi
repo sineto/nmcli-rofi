@@ -3,7 +3,7 @@ DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 # default config
 FIELDS=SSID,SECURITY,BARS
-POSITION=0; XOFF=0; YOFF=0;
+POSITION=0; XOFF=0; YOFF=0; MAXLINES=0; MAXWIDTH=0;
 FONT="DejaVu Sans Mono Bold 14"
 
 # get current uuid
@@ -52,6 +52,7 @@ function linenum () {
   [[ "$wa" != '' ]] && ops=4 || ops=3
 
   lines=$(if_wifistate "$(($list_lines_num+$ops))" 1)
+  [[ $MAXLINES -gt 0 ]] && [[ $lines -ge $MAXLINES ]] && lines=$MAXLINES
   echo $lines
 }
 
@@ -59,6 +60,7 @@ function rwidth () {
     minus=$(echo -n "IN-USE  " | wc -m)
     rwidth=$(if_wifistate "$(($(echo "$1" | head -n 1 | awk '{print length($0); }')-$minus))" \
       "$(echo "$2" | awk '{print length($0); }')" )
+    [[ $MAXWIDTH -gt 0 ]] && [[ $rwidth -gt $MAXWIDTH ]] && rwidth=$MAXWIDTH
     echo $rwidth
 }
 
