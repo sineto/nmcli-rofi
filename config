@@ -1,4 +1,5 @@
 # Config for rofi-wifi-menu
+NMCLI_ROFI_SOURCE=$HOME/config
 
 # position values:
 # 1 2 3

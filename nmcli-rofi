@@ -105,7 +105,7 @@ function rofi_menu () {
 
 function get_ssid () {
     # get fields in order
-    eval FIELDSARR=( $(cat ./config | awk 'BEGIN { FS=","; OFS="\n" } /^FIELDS/ \
+    eval FIELDSARR=( $(cat $NMCLI_ROFI_SOURCE | awk 'BEGIN { FS=","; OFS="\n" } /^FIELDS/ \
       { $1 = substr($1, 8); print $0; }') )
 
     # get position of SSID field
@@ -130,7 +130,7 @@ function cleanup_networks () {
 
 function main () {
     if [ -r "$DIR/config" ]; then
-      source $DIR/config
+      source "$DIR/config"
     elif [ -r "$HOME/.config/rofi/wifi" ]; then
       source "$HOME/.config/rofi/wifi"
     else
