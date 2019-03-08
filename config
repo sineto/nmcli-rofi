@@ -12,6 +12,9 @@ YOFF=30
 #x-offset
 XOFF=0
 
+#window width correction
+MAGIC=-5
+
 #fields to be displayed
 FIELDS=SSID,SECURITY,BARS
 
