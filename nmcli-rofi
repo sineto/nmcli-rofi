@@ -119,7 +119,7 @@ function get_ssid () {
     let AWKSSIDPOS=$SSID_POS+1
 
     # get SSID from AWKSSIDPOS
-    CHSSID=$(echo "$1" | awk -v"AWKSSIDPOS=$AWKSSIDPOS" '{print $AWKSSIDPOS;}')
+    CHSSID=$(echo "$1" | sed  's/\s\{2,\}/\|/g' | awk -F "|" '{print $'$AWKSSIDPOS'}')
     echo "$CHSSID"
 }
 
