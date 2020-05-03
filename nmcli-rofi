@@ -148,7 +148,6 @@ function main () {
 
     elif [[ "$OPS" =~ 'Disconnect' ]]; then
       nmcli con down uuid $CURRUUID
-      cleanup_networks
 
     elif [[ "$OPS" =~ 'Manual' ]]; then
       # Manual entry of the SSID
