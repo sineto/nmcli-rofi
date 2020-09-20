@@ -151,6 +151,21 @@ function main () {
     if [[ "$OPS" =~ 'Disable' ]]; then
       nmcli radio wifi off
 
+
+    elif [[ "$CHSSID" == '--' ]]; then
+          MSSID=$(echo -en "" | rofi -dmenu -p "SSID: " -mesg "Enter the SSID of the network" \
+            -lines 0 -font "$FONT")
+
+          # manual entry of the PASSWORD
+          MPASS=$(echo -en "" | rofi -dmenu -password -p "PASSWORD: " -mesg \
+            "Enter the PASSWORD of the network" -lines 0 -font "$FONT")
+
+            nmcli c del "$MSSID"
+            nmcli c add  type wifi con-name "$MSSID" ifname "$CHDEV" ssid "$MSSID"
+            nmcli c modify "$MSSID" wifi-sec.key-mgmt wpa-psk
+            nmcli c modify "$MSSID" wifi-sec.psk "$MPASS"
+            nmcli c u "$MSSID"
+
     elif [[ "$OPS" =~ 'Enable' ]]; then
       nmcli radio wifi on
 
