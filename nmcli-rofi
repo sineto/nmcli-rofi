@@ -103,7 +103,7 @@ function rofi_menu () {
     rofi_cmd "$MENU"
 }
 
-function get_ssid () {
+function get_ssid_device () {
     # get fields in order
     eval FIELDSARR=( $(cat $NMCLI_ROFI_SOURCE | awk 'BEGIN { FS=","; OFS="\n" } /^FIELDS/ \
       { $1 = substr($1, 8); print $0; }') )
@@ -116,11 +116,12 @@ function get_ssid () {
     done
 
     # let for arithmetical vars
-    let AWKSSIDPOS=$SSID_POS+1
+    let AWKFIELDPOS=$SSID_POS+$2
 
     # get SSID from AWKSSIDPOS
-    CHSSID=$(echo "$1" | sed  's/\s\{2,\}/\|/g' | awk -F "|" '{print $'$AWKSSIDPOS'}')
-    echo "$CHSSID"
+    CHSSID=$(echo "$1" | sed  's/\s\{2,\}/\|/g' | awk -F "|" '{print $'$AWKFIELDPOS'}')
+
+    echo "$CHSSID" 
 }
 
 function cleanup_networks () {
@@ -138,7 +139,8 @@ function main () {
     fi
 
     OPS=$(rofi_menu)
-    CHSSID=$(get_ssid "$OPS")
+    CHSSID=$(get_ssid_device "$OPS", 1)
+    CHDEV=$(get_ssid_device "$OPS", 3)
 
     if [[ "$OPS" =~ 'Disable' ]]; then
       nmcli radio wifi off
@@ -151,18 +153,18 @@ function main () {
 
     elif [[ "$OPS" =~ 'Manual' ]]; then
       # Manual entry of the SSID
-      MSSID=$(echo -en "" | rofi -dmenu -p "SSID" -mesg "Enter the SSID of the network" \
+      MSSID=$(echo -en "" | rofi -dmenu -p "SSID: " -mesg "Enter the SSID of the network" \
         -lines 0 -font "$FONT")
 
       # manual entry of the PASSWORD
-      MPASS=$(echo -en "" | rofi -dmenu -password -p "PASSWORD" -mesg \
+      MPASS=$(echo -en "" | rofi -dmenu -password -p "PASSWORD: " -mesg \
         "Enter the PASSWORD of the network" -lines 0 -font "$FONT")
 
       # If the user entered a manual password, then use the password nmcli command
       if [ "$MPASS" = "" ]; then
-        nmcli dev wifi con "$MSSID"
+        nmcli dev wifi con "$MSSID" ifname "$CHDEV"
       elif [ "$MSSID" != '' ] && [ "$MPASS" != '' ]; then
-        nmcli dev wifi con "$MSSID" password "$MPASS"
+        nmcli dev wifi con "$MSSID" password "$MPASS" ifname "$CHDEV"
       fi
 
     else
@@ -172,7 +174,7 @@ function main () {
         fi
 
         if [[ "$CHSSID" != '' ]] && [[ "$WIFIPASS" != '' ]]; then
-          nmcli dev wifi con "$CHSSID" password "$WIFIPASS"
+          nmcli dev wifi con "$CHSSID" password "$WIFIPASS" ifname "$CHDEV"
         fi
     fi
 }
