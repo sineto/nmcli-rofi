@@ -129,6 +129,11 @@ function cleanup_networks () {
     | while read line; do nmcli con delete uuid $line; done
 }
 
+function get_available_connections() {
+    avail_conn=$(nmcli connection show | cut -d" " -f1 | tail -n +2)
+    echo $avail_conn
+}
+
 function main () {
     if [ -r "$DIR/config" ]; then
       source "$DIR/config"
@@ -141,6 +146,7 @@ function main () {
     OPS=$(rofi_menu)
     CHSSID=$(get_ssid_device "$OPS", 1)
     CHDEV=$(get_ssid_device "$OPS", 3)
+    AVALABLE_CONNECTIONS=$(get_available_connections)
 
     if [[ "$OPS" =~ 'Disable' ]]; then
       nmcli radio wifi off
@@ -169,8 +175,16 @@ function main () {
 
     else
         if [[ "$OPS" =~ "WPA2" ]] || [[ "$OPS" =~ "WEP" ]]; then
-          WIFIPASS=$(echo -en "" | rofi -dmenu -password -p "PASSWORD" \
-            -mesg "Enter the PASSWORD of the network" -lines 0 -font "$FONT")
+            if [[ `echo "$AVALABLE_CONNECTIONS" |grep -w "$CHSSID"` ]]; then
+                nmcli c u "$CHSSID"
+            else
+                WIFIPASS=$(echo -en "" | rofi -dmenu -password -p "PASSWORD: " \
+                -mesg "Enter the PASSWORD of the network" -lines 0 -font "$FONT")
+
+                if [[ "$CHSSID" != '' ]] && [[ "$WIFIPASS" != '' ]]; then
+                    nmcli dev wifi con "$CHSSID" password "$WIFIPASS" ifname "$CHDEV"
+                fi
+            fi
         fi
 
         if [[ "$CHSSID" != '' ]] && [[ "$WIFIPASS" != '' ]]; then
